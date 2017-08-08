@@ -406,10 +406,15 @@ function send_dayu_sms($tel, $type, $data)
     $req->setRecNum("{$tel}");
     switch ($type) {
         case 'register':
-            $req->setSmsParam('{"code":"' . $data['code'] . '"}');
+            $req->setSmsParam([
+                'code' => $data['code']
+            ]);
             break;
         case 'live':
-            $req->setSmsParam('{"number":"' . $data['number'] . '","code":"' . $data['code'] . '"}');
+            $req->setSmsParam([
+                'number'=>$data['number'],
+                'code'=>$data['code']
+            ]);
             break;
         case 'identity':
             $req->setSmsParam('{"name":"' . $data['name'] . '"}');

@@ -1,4 +1,5 @@
 <?php
+
 namespace Flc\Alidayu;
 
 use Exception;
@@ -11,7 +12,7 @@ use Flc\Alidayu\Requests\IRequest;
  * @link   http://flc.ren
  */
 class Client
-{   
+{
     /**
      * API请求地址
      * @var string
@@ -22,7 +23,7 @@ class Client
      * 沙箱请求地址
      * @var string
      */
-    protected $api_sandbox_uri = 'http://gw.api.tbsandbox.com/router/rest'; 
+    protected $api_sandbox_uri = 'http://gw.api.tbsandbox.com/router/rest';
 
     /**
      * 应用
@@ -69,8 +70,8 @@ class Client
      */
     public function execute(IRequest $request)
     {
-        $method        = $request->getMethod();
-        $publicParams  = $this->getPublicParams();
+        $method = $request->getMethod();
+        $publicParams = $this->getPublicParams();
         $serviceParams = $request->getParams();
 
         $params = array_merge(
@@ -122,20 +123,19 @@ class Client
      */
     protected function parseRep($response)
     {
-        if ($this->format == 'json') {
-            $resp = json_decode($response);
-
-            if (false !== $resp) {
-                $resp = current($resp);
+        try {
+            if ($this->format == 'json') {
+                $resp = json_decode($response);
+                if (false !== $resp) {
+                    $resp = current($resp);
+                }
+            } elseif ($this->format == 'xml') {
+                $resp = @simplexml_load_string($response);
+            } else {
+                throw new Exception("format错误...");
             }
-        }
-
-        elseif ($this->format == 'xml') {
-            $resp = @simplexml_load_string($response);
-        }
-
-        else {
-            throw new Exception("format错误...");
+        } catch (\Exception $e) {
+            $resp = $e->getMessage();
         }
 
         return $resp;
@@ -143,23 +143,23 @@ class Client
 
     /**
      * 返回公共参数
-     * @return array 
+     * @return array
      */
     protected function getPublicParams()
     {
         return [
-            'app_key'     => $this->app->app_key,
-            'timestamp'   => date('Y-m-d H:i:s'),
-            'format'      => $this->format,
-            'v'           => '2.0',
+            'app_key' => $this->app->app_key,
+            'timestamp' => date('Y-m-d H:i:s'),
+            'format' => $this->format,
+            'v' => '2.0',
             'sign_method' => $this->sign_method
         ];
     }
 
     /**
      * 生成签名
-     * @param  array  $params 待签参数
-     * @return string         
+     * @param  array $params 待签参数
+     * @return string
      */
     protected function generateSign($params = [])
     {
@@ -174,8 +174,8 @@ class Client
 
     /**
      * 按Md5方式生成签名
-     * @param  array  $params 待签的参数
-     * @return string         
+     * @param  array $params 待签的参数
+     * @return string
      */
     protected function generateMd5Sign($params = [])
     {
@@ -185,7 +185,7 @@ class Client
         foreach ($params as $k => $v) {
             $arr[] = $k . $v;
         }
-        
+
         $str = $this->app->app_secret . implode('', $arr) . $this->app->app_secret;
 
         return strtoupper(md5($str));
@@ -193,8 +193,8 @@ class Client
 
     /**
      * 按hmac方式生成签名
-     * @param  array  $params 待签的参数
-     * @return string         
+     * @param  array $params 待签的参数
+     * @return string
      */
     protected function generateHmacSign($params = [])
     {
@@ -204,7 +204,7 @@ class Client
         foreach ($params as $k => $v) {
             $arr[] = $k . $v;
         }
-        
+
         $str = implode('', $arr);
 
         return strtoupper(hash_hmac('md5', $str, $this->app->app_secret));
@@ -212,8 +212,8 @@ class Client
 
     /**
      * 待签名参数排序
-     * @param  array  &$params 参数
-     * @return array         
+     * @param  array &$params 参数
+     * @return array
      */
     protected static function sortParams(&$params = [])
     {
@@ -222,7 +222,7 @@ class Client
 
     /**
      * 请求API
-     * @param  string   $method   接口名称
+     * @param  string $method 接口名称
      * @param  callable $callable 执行函数
      * @return [type]             [description]
      */
@@ -230,7 +230,7 @@ class Client
     {
         // A. 校验
         if (empty($method) ||
-            ! $classname = self::getMethodClassName($method)
+            !$classname = self::getMethodClassName($method)
         ) {
             throw new Exception("method错误");
         }
@@ -238,7 +238,7 @@ class Client
         // B. 获取带命名空间的类
         $classNameSpace = __NAMESPACE__ . '\\Requests\\' . $classname;
 
-        if (! class_exists($classNameSpace)) 
+        if (!class_exists($classNameSpace))
             throw new Exception("method不存在");
 
         // C. 创建对象
@@ -268,12 +268,12 @@ class Client
     /**
      * 通过接口名称获取对应的类名称
      * @param  string $method 接口名称
-     * @return string         
+     * @return string
      */
     protected static function getMethodClassName($method)
     {
         $methods = explode('.', $method);
-        
+
         if (!is_array($methods))
             return false;
 
@@ -290,7 +290,7 @@ class Client
 
     /**
      * curl请求
-     * @param  string $url        string
+     * @param  string $url string
      * @param  array|null $postFields 请求参数
      * @return [type]             [description]
      */
@@ -301,20 +301,20 @@ class Client
         curl_setopt($ch, CURLOPT_FAILONERROR, false);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         //https 请求
-        if(strlen($url) > 5 && strtolower(substr($url,0,5)) == "https" ) {
+        if (strlen($url) > 5 && strtolower(substr($url, 0, 5)) == "https") {
             curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
             curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
         }
         if (is_array($postFields) && 0 < count($postFields)) {
             $postBodyString = "";
             foreach ($postFields as $k => $v) {
-                $postBodyString .= "$k=" . urlencode($v) . "&"; 
+                $postBodyString .= "$k=" . urlencode($v) . "&";
             }
             unset($k, $v);
             curl_setopt($ch, CURLOPT_POST, true);
             $header = array("content-type: application/x-www-form-urlencoded; charset=UTF-8");
-            curl_setopt($ch,CURLOPT_HTTPHEADER,$header);
-            curl_setopt($ch, CURLOPT_POSTFIELDS, substr($postBodyString,0,-1));
+            curl_setopt($ch, CURLOPT_HTTPHEADER, $header);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, substr($postBodyString, 0, -1));
         }
         $reponse = curl_exec($ch);
         return $reponse;

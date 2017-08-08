@@ -11,6 +11,7 @@ namespace app\frontend\controller;
 
 use think\Controller;
 use think\Db;
+use think\Loader;
 use think\Log;
 
 class Excel extends Controller
@@ -508,7 +509,7 @@ class Excel extends Controller
                     ]);
                     Log::info("--------------------验证码 : " . $codeArr[$j]["code"] . " 发送成功");
                 } else {
-                    Log::error("-------------------验证码 : " . $codeArr[$j]["code"] . " 发送失败 ，错误原因：".$resTT->sub_msg);
+                    Log::error("-------------------验证码 : " . $codeArr[$j]["code"] . " 发送失败 ，错误原因：" . $resTT->sub_msg);
                 }
             }
         } catch (\Exception $e) {
@@ -522,7 +523,43 @@ class Excel extends Controller
      */
     public function sendDayuSmsPlus()
     {
-        $res = send_dayu_sms("15168276370", "register", ['code' => rand(100000, 999999)]);
+        $res = send_dayu_sms("15858196553", "live", ['number' => 12, 'code' => rand(100000, 999999)]);
+//        $res = send_dayu_sms("13669361192", "live", ['code' => rand(100000, 999999)]);
         halt($res);
+    }
+
+    public function sendDayuSmsPlus123($tel,$type,$data)
+    {
+        Loader::import('taobao-sdk.top.TopClient');
+        $dayu_template = 'template_' . $type; //template_register
+        $signname = config("sms")['dayu'][$dayu_template]["sign_name"];
+        $templatecode = config("sms")['dayu'][$dayu_template]["code"];
+        $c = new \TopClient();
+        $c->appkey = C('dayu_appkey');
+        $c->secretKey = C('dayu_secretKey');
+        $req = new AlibabaAliqinFcSmsNumSend();
+        $req->setRecNum("{$tel}");
+        switch ($type) {
+            case 'register':
+                $req->setSmsParam([
+                    'code' => $data['code']
+                ]);
+                break;
+            case 'live':
+                $req->setSmsParam([
+                    'number'=>$data['number'],
+                    'code'=>$data['code']
+                ]);
+                break;
+            case 'identity':
+                $req->setSmsParam('{"name":"' . $data['name'] . '"}');
+                break;
+            default:
+                $req->setSmsParam('{"code":"' . $data['code'] . '","product":"' . $data['product'] . '"}');
+        }
+        $req->setSmsFreeSignName("{$signname}");
+        $req->setSmsTemplateCode("{$templatecode}");
+        $resp = $c->execute($req);
+        return $resp;
     }
 }
