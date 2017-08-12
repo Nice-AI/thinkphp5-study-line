@@ -4,6 +4,7 @@ namespace app\common\model;
 
 use Faker\Factory;
 use houdunwang\crypt\Crypt;
+use think\Db;
 use think\Loader;
 use think\Log;
 use think\Model;
@@ -32,7 +33,7 @@ class Admin extends Model
     public static function getRandUserName()
     {
         $faker = Factory::create($locale = 'zh_CN');
-        return $faker->country . '-' . $faker->name;
+        return $faker->name;
     }
 
     /**
@@ -141,8 +142,8 @@ class Admin extends Model
         ])->save();
         if (!$res) return ['valid' => 0, 'msg' => "数据库添加数据失败"];
         // 4 发送邮件
-
-        $emailSendDomain = config('email.EMAIL_SEND_DOMAIN');
+        $emailSendDomain = $_SERVER["HTTP_HOST"];
+        $requestUri = $_SERVER["REQUEST_URI"];
         $checkstr = base64_encode($data['email']);
         $auth_key = get_auth_key($data['email']);
         $link = "http://{$emailSendDomain}/backend/login/emailRegisterUrlValid?checkstr=$checkstr&auth_key={$auth_key}";
@@ -155,59 +156,6 @@ class Admin extends Model
 			$link
 html;
         $data["str"] = $str;
-        $result = send_email($data["email"], '物联网智能数据 帐户激活邮件--', $str);
-        if ($result['error'] == 1) return ['valid' => 0, 'msg' => "邮件发送失败，请联系管理员"];
-        return ['valid' => 1, 'msg' => $data['email'] . "注册成功，请立即验证邮箱<br/>邮件发送至: " . $data['email']];
-    }
-
-    /**
-     * 邮箱注册
-     * @param $data
-     * @return array
-     */
-    public function emailRegisterCli($data)
-    {
-        // 1 验证数据
-        $validate = new Validate([
-            'email' => 'require|email',
-            'password' => 'require',
-            'repassword' => 'require|confirm:password'
-        ], [
-            'password.require' => "密码不能为空！",
-            'repassword.require' => "两次密码输入不一致！",
-            'repassword.confirm' => "两次密码输入不一致！"
-        ]);
-        if (!$validate->check($data)) {
-            return ['valid' => 0, 'msg' => $validate->getError()];
-        }
-        // 2 检测邮箱是否被注册
-        $time = time();
-        $passwordToken = md5($data['email'] . md5($data['password']) . $time); //创建用于激活识别码
-        $userInfo = $userInfo = $this->where('email', $data['email'])->find();
-        if ($userInfo) return ['valid' => 0, 'msg' => "该邮箱已经被注册"];
-        // 3 插入数据库
-        $res = $this->data([
-            'username' => self::getRandUserName(),
-            'password' => md5($data["password"]),
-            'email' => $data["email"],
-            'password_token' => $passwordToken,
-            'loginip' => "127.0.0.1",
-        ])->save();
-        if (!$res) return ['valid' => 0, 'msg' => "数据库添加数据失败"];
-        // 4 发送邮件
-
-        $emailSendDomain = config('email.EMAIL_SEND_DOMAIN');
-        $checkstr = base64_encode($data['email']);
-        $auth_key = get_auth_key($data['email']);
-        $link = "http://{$emailSendDomain}/backend/login/emailRegisterUrlValid?checkstr=$checkstr&auth_key={$auth_key}";
-        $str = <<<html
-            您好！<p></p>
-            感谢您在Tinywan世界注册帐户！<p></p>
-			帐户需要激活才能使用，赶紧激活成为Tinywan家园的正式一员吧:)<p></p>
-            点击下面的链接立即激活帐户(或将网址复制到浏览器中打开):<p></p>
-			$link
-html;
-        //传递一个数组，可以实现多邮件发送,有人注册的时候给管理员也同时发送一份邮件
         $result = send_email($data["email"], '物联网智能数据 帐户激活邮件--', $str);
         if ($result['error'] == 1) return ['valid' => 0, 'msg' => "邮件发送失败，请联系管理员"];
         return ['valid' => 1, 'msg' => $data['email'] . "注册成功，请立即验证邮箱<br/>邮件发送至: " . $data['email']];
@@ -229,11 +177,23 @@ html;
         // 2 验证邮箱
         $userInfo = $this->where('email', $email)->where('enable', 0)->find();
         if (!$userInfo) return ['valid' => 0, 'msg' => "该账户已被激活或者该账户不存在"];
-        // 3、修改数据库字段信息
-        $res = $this->save([
-            'enable' => 1  # 表示已经激活
-        ], [$this->pk => $userInfo['id']]);
-        if (!$res) return ['valid' => 0, 'msg' => "邮件激活失败"];
+        // 3、修改数据库表：auth_group表和user表
+        // 启动事务
+        Db::startTrans();
+        try{
+            $this->save([
+                'enable' => 1  # 表示已经激活
+            ], [$this->pk => $userInfo['id']]);
+            // 系统默认审核为最低权限
+            $groupData['uid'] = $userInfo['id'];
+            $groupData['group_id'] = 13;
+            Db::table("resty_auth_group_access")->insert($groupData);
+            Db::commit();
+        }catch (\Exception $e){
+            Db::rollback();
+            Log::error("auth_group表和user表修改异常：".$e->getMessage());
+            return ['valid' => 0, 'msg' => "邮件激活失败"];
+        }
         // 4 记录session
         if ($scene == "frontend") {
             session('frontend.id', $userInfo['id']);
@@ -250,7 +210,7 @@ html;
      * @param $data
      * @return array
      */
-    public function changePassword($data)
+    public function changePassword($data,$scene)
     {
         // 1 验证数据
         $validate = new Validate([
@@ -323,7 +283,7 @@ html;
      * @param $data
      * @return array
      */
-    public function checkEmailUrlValid($data)
+    public function checkEmailUrlValid($data,$scene)
     {
         // 1 检查url地址有效性
         $email = base64_decode($data['checkstr']);
@@ -343,7 +303,7 @@ html;
      * @param $data
      * @return array
      */
-    public function reSetPassword($data)
+    public function reSetPassword($data,$scene)
     {
         // 1 验证数据
         $validate = new Validate([

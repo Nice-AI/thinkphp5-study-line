@@ -24,6 +24,7 @@ class Login extends Controller
      */
     public function testQueue()
     {
+        halt($_SERVER);
         $res = (new Admin())->sendMailQueue();
         halt($res);
     }
@@ -60,7 +61,7 @@ class Login extends Controller
      */
     public function emailRegister()
     {
-        $res = (new Admin())->emailRegister(input("post."));
+        $res = (new Admin())->emailRegister(input("post."),"backend");
         if (!$res["valid"]) {
             //密码验证、邮箱发送成功
             $this->success($res['msg'], "backend/login/login");
@@ -77,7 +78,7 @@ class Login extends Controller
     public function emailRegisterUrlValid(Request $request)
     {
         if ($request->isGet()) {
-            $res = (new Admin())->emailRegisterUrlValid(input("get."));
+            $res = (new Admin())->emailRegisterUrlValid(input("get."),"backend");
             if ($res["valid"]) {
                 //success 把目前的邮箱地址保存在session中
                 $this->success($res['msg'], "backend/entry/index");
@@ -93,7 +94,7 @@ class Login extends Controller
      */
     public function forgotPassword()
     {
-        $res = (new Admin())->checkSendEmail(input("post."));
+        $res = (new Admin())->checkSendEmail(input("post."),"backend");
         if (!$res["valid"]) {
             //密码验证、邮箱发送成功
             $this->success($res['msg'], "backend/login/login");
@@ -129,7 +130,7 @@ class Login extends Controller
     public function reSetPassword(Request $request)
     {
         if ($request->isPost()) {
-            $res = (new Admin())->reSetPassword(input("post."));
+            $res = (new Admin())->reSetPassword(input("post."),"backend");
             if ($res['valid']) {
                 //success
                 $this->success($res['msg'], "backend/entry/index");
